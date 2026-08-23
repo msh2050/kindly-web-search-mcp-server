@@ -27,8 +27,8 @@ import json
 import logging
 import os
 import re
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from datetime import datetime, timezone
 
 import httpx
 
@@ -48,11 +48,11 @@ USER_AGENT = (
     "Chrome/139.0.0.0 Safari/537.36"
 )
 
-_ITEM_RE = re.compile(r"<item>(.*?)</item>", re.S)
-_TITLE_RE = re.compile(r"<title>(.*?)</title>", re.S)
-_LINK_RE = re.compile(r"<link>(.*?)</link>", re.S)
-_PUBDATE_RE = re.compile(r"<pubDate>(.*?)</pubDate>", re.S)
-_SOURCE_RE = re.compile(r'<source url="(.*?)">(.*?)</source>', re.S)
+_ITEM_RE = re.compile(r"<item>(.*?)</item>", re.DOTALL)
+_TITLE_RE = re.compile(r"<title>(.*?)</title>", re.DOTALL)
+_LINK_RE = re.compile(r"<link>(.*?)</link>", re.DOTALL)
+_PUBDATE_RE = re.compile(r"<pubDate>(.*?)</pubDate>", re.DOTALL)
+_SOURCE_RE = re.compile(r'<source url="(.*?)">(.*?)</source>', re.DOTALL)
 _SIG_RE = re.compile(r'data-n-a-sg="([^"]+)"')
 _TS_RE = re.compile(r'data-n-a-ts="([^"]+)"')
 _TAG_RE = re.compile(r"<.*?>")
@@ -86,7 +86,7 @@ def _parse_published(raw: str) -> datetime | None:
     if parsed is None:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
+        parsed = parsed.replace(tzinfo=UTC)
     return parsed
 
 
@@ -179,7 +179,10 @@ async def resolve_url(url: str, client: httpx.AsyncClient) -> str:
         for candidate in re.findall(r'https?://[^"\\\s]+', resp.text):
             if "google.com" not in candidate and "gstatic" not in candidate:
                 return candidate
-    except Exception as exc:  # undocumented endpoint: never fatal
+    except Exception as exc:  # noqa: BLE001 -- deliberate
+        # batchexecute is an undocumented internal endpoint: it can fail in
+        # ways there is no point enumerating, and none of them should cost the
+        # caller a result. Falling back to the wrapper link is always valid.
         LOGGER.warning("Google News URL resolution failed (%s); keeping wrapper",
                        type(exc).__name__)
     return url
@@ -240,7 +243,7 @@ async def search_google_news(
         resp.raise_for_status()
         # Over-fetch a little so recency sorting has something to choose from.
         pairs = parse_feed(resp.text, max(num_results * 4, 40))
-        pairs.sort(key=lambda pair: pair[1] or datetime.min.replace(tzinfo=timezone.utc),
+        pairs.sort(key=lambda pair: pair[1] or datetime.min.replace(tzinfo=UTC),
                    reverse=True)
         results = [result for result, _ in pairs][:num_results]
         if resolve_links:

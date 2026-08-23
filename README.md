@@ -127,7 +127,7 @@ Both probes validate the response (`text/markdown`, ≥1 KB, non-empty after san
 
 ## Requirements
 
-- A search provider (priority order): `SERPER_API_KEY` (recommended) → `SERPBASE_API_KEY` (SerpBase, Google results) → `TAVILY_API_KEY` → `SEARXNG_BASE_URL` (self-hosted SearXNG) → `SOFYA_API_KEY`
+- A search provider (priority order): `KINDLY_LOCAL_STACK` (fork addition: SearXNG + Google News RSS, needs `SEARXNG_BASE_URL`) → `SERPER_API_KEY` (recommended) → `SERPBASE_API_KEY` (SerpBase, Google results) → `TAVILY_API_KEY` → `SEARXNG_BASE_URL` (self-hosted SearXNG) → `SOFYA_API_KEY`
 - A Chromium-based browser installed on the same machine running the MCP client (Chrome/Chromium/Edge/Brave)
   - Without a browser: specialized sources (StackExchange, GitHub Issues/Discussions, Wikipedia, arXiv) still work well, but universal HTML `page_content` extraction may fail for other sites.
 - Highly recommended: `GITHUB_TOKEN` (renders GitHub Issues in a much more LLM-friendly format: question + answers/comments + reactions/metadata; fewer rate limits)
@@ -197,7 +197,13 @@ Other Linux distros: install `chromium` (or `chromium-browser`) via your package
 
 ### 3) Set your search API key (required)
 
-Set **one** of these. Provider selection order is: Serper → SerpBase → Tavily → SearXNG → Sofya.
+Set **one** of these. Provider selection order is: Local stack → Serper → SerpBase → Tavily → SearXNG → Sofya.
+
+`KINDLY_LOCAL_STACK` is a fork addition. It reuses the SearXNG provider and
+adds Google News RSS (merged for news-shaped queries, with the feed's opaque
+wrapper URLs resolved to real articles), reranking by query-term overlap, and
+an ignore list for hosts that cannot be read. It needs `SEARXNG_BASE_URL` set
+too. See `src/kindly_web_search_mcp_server/search/localstack.py`.
 
 macOS / Linux:
 
@@ -257,7 +263,7 @@ Make sure your API keys are set in the same shell/OS environment that launches t
 
 ### Codex
 
-Set one of `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
+Set one of `KINDLY_LOCAL_STACK` (with `SEARXNG_BASE_URL`), `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
 
 CLI (no file editing) — add a local stdio MCP server:
 
@@ -324,13 +330,13 @@ args = [
   "start-mcp-server",
 ]
 # Forward variables from your shell/OS environment:
-env_vars = ["SERPER_API_KEY", "SERPBASE_API_KEY", "TAVILY_API_KEY", "SEARXNG_BASE_URL", "SOFYA_API_KEY", "GITHUB_TOKEN", "KINDLY_BROWSER_EXECUTABLE_PATH"]
+env_vars = ["KINDLY_LOCAL_STACK", "SERPER_API_KEY", "SERPBASE_API_KEY", "TAVILY_API_KEY", "SEARXNG_BASE_URL", "SOFYA_API_KEY", "GITHUB_TOKEN", "KINDLY_BROWSER_EXECUTABLE_PATH"]
 startup_timeout_sec = 120.0
 ```
 
 ### Claude Code
 
-Set one of `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
+Set one of `KINDLY_LOCAL_STACK` (with `SEARXNG_BASE_URL`), `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
 
 CLI (no file editing) — add a local stdio MCP server:
 
@@ -428,7 +434,7 @@ Create/edit `.mcp.json` (project scope; recommended for teams):
 
 ### Gemini CLI
 
-Set one of `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
+Set one of `KINDLY_LOCAL_STACK` (with `SEARXNG_BASE_URL`), `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
 Edit `~/.gemini/settings.json` (or `.gemini/settings.json` in a project):
 
 ```json
@@ -457,7 +463,7 @@ Edit `~/.gemini/settings.json` (or `.gemini/settings.json` in a project):
 
 ### OpenClaw
 
-Set one of `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
+Set one of `KINDLY_LOCAL_STACK` (with `SEARXNG_BASE_URL`), `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
 If `mcporter` is not installed yet: `npm i -g mcporter`.
 mcporter docs: <https://github.com/steipete/mcporter/blob/main/docs/config.md>
 
@@ -519,7 +525,7 @@ openclaw gateway restart
 
 ### Antigravity (Google IDE)
 
-Set one of `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
+Set one of `KINDLY_LOCAL_STACK` (with `SEARXNG_BASE_URL`), `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
 
 In Antigravity, open the MCP store, then:
 
@@ -551,13 +557,13 @@ Paste this into your `mcpServers` object (don’t overwrite other servers):
 ```
 
 If Antigravity can’t find `uvx`, replace `"uvx"` with the absolute path (`which uvx` on macOS/Linux, `where uvx` on Windows).
-Make sure at least one of `SERPER_API_KEY` / `SERPBASE_API_KEY` / `TAVILY_API_KEY` / `SEARXNG_BASE_URL` / `SOFYA_API_KEY` is non-empty.
+Make sure at least one of `KINDLY_LOCAL_STACK` / `SERPER_API_KEY` / `SERPBASE_API_KEY` / `TAVILY_API_KEY` / `SEARXNG_BASE_URL` / `SOFYA_API_KEY` is non-empty.
 If the first start is slow, run the `uvx` command from Quickstart once in a terminal to prebuild the environment, then click **Refresh**.
 Don’t commit/share `mcp_config.json` if it contains API keys.
 
 ### Cursor
 
-Set one of `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
+Set one of `KINDLY_LOCAL_STACK` (with `SEARXNG_BASE_URL`), `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
 Startup timeout: Cursor does not currently expose a per-server startup timeout setting. If the first run is slow, run the `uvx` command from Quickstart once in a terminal to prebuild the tool environment, then restart Cursor.
 Create `.cursor/mcp.json`:
 
@@ -755,7 +761,7 @@ docker run --rm -p 8000:8000 \
 ```
 
 - MCP endpoint: `http://<server-host>:8000/mcp`
-- Make sure at least one of `SERPER_API_KEY` / `SERPBASE_API_KEY` / `TAVILY_API_KEY` / `SEARXNG_BASE_URL` / `SOFYA_API_KEY` is set.
+- Make sure at least one of `KINDLY_LOCAL_STACK` / `SERPER_API_KEY` / `SERPBASE_API_KEY` / `TAVILY_API_KEY` / `SEARXNG_BASE_URL` / `SOFYA_API_KEY` is set.
 - `page_content` extraction runs on the server machine/container (this Docker image includes Chromium).
 - Remote HTTP is typically **unauthenticated** and **unencrypted** by default; don’t expose this port publicly. Use VPN/firewall rules or a reverse proxy with TLS + auth.
 - Don’t bake API keys into the image; pass them via env vars at runtime.
@@ -790,7 +796,7 @@ docker run --rm -p 8000:8000 \
   - Set `KINDLY_DIAGNOSTICS=1` to emit JSON-line diagnostics to stderr and include `diagnostics` in tool responses.
   - `get_content` returns top-level `diagnostics`; `web_search` attaches `diagnostics` per result.
 - `OSError: [Errno 39] Directory not empty: '/tmp/kindly-nodriver-.../Default'`: update to the latest server revision (uv may cache tool envs; `uv cache clean` can help).
-- “web_search fails: no provider key”: set `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
+- “web_search fails: no provider key”: set `KINDLY_LOCAL_STACK` / `SERPER_API_KEY`, `SERPBASE_API_KEY`, `TAVILY_API_KEY`, `SEARXNG_BASE_URL`, or `SOFYA_API_KEY`.
 
 ## Security
 

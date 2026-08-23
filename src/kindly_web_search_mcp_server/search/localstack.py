@@ -53,21 +53,13 @@ DEFAULT_IGNORED_DOMAINS = (
 # result titled "transfer news and rumours today" first, because the filler
 # words alone can win when the engine does not AND the query terms.
 _STOPWORDS = frozenset(
-    """
-    a an the of for in on at to from by with about into over after and or is are was
-    were be been being this that these those it its as new news latest today todays
-    update updates recent current breaking report reports info information please
-    search find show tell me my what when where which who why how do does did
-    """.split()
+    ["a", "an", "the", "of", "for", "in", "on", "at", "to", "from", "by", "with", "about", "into", "over", "after", "and", "or", "is", "are", "was", "were", "be", "been", "being", "this", "that", "these", "those", "it", "its", "as", "new", "news", "latest", "today", "todays", "update", "updates", "recent", "current", "breaking", "report", "reports", "info", "information", "please", "search", "find", "show", "tell", "me", "my", "what", "when", "where", "which", "who", "why", "how", "do", "does", "did"]
 )
 
 # Terms that make a query worth asking Google News about. A plain web query
 # gains nothing from a news feed, and the extra request is pure latency.
 _NEWS_HINTS = frozenset(
-    """
-    news headline headlines breaking latest today yesterday update updates
-    announced announcement report reports live coverage
-    """.split()
+    ["news", "headline", "headlines", "breaking", "latest", "today", "yesterday", "update", "updates", "announced", "announcement", "report", "reports", "live", "coverage"]
 )
 
 _WORD_RE = re.compile(r"[^\W\d_]{3,}", re.UNICODE)

@@ -105,7 +105,8 @@ PROVIDERS: tuple[SearchProviderSpec, ...] = (
     # as well, which its own error message explains if missing.
     SearchProviderSpec(
         "local-stack",
-        "Local stack (SearXNG + Google News)",
+        "Local stack",   # label must not contain another provider's label:
+                         # the registry-order guard locates each by substring
         "KINDLY_LOCAL_STACK",
         "search_local_stack",
         "has_local_stack",

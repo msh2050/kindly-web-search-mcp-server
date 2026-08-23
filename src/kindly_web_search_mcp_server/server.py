@@ -276,7 +276,9 @@ async def web_search(
 
     Notes:
     - Content extraction is best-effort and may be truncated to avoid context “bombs”.
-    - Provider routing (strict order): Serper → SerpBase → Tavily → SearXNG → Sofya.
+    - Provider routing (strict order): Local stack → Serper → SerpBase → Tavily → SearXNG → Sofya.
+      Set `KINDLY_LOCAL_STACK` (with `SEARXNG_BASE_URL`) to merge Google News RSS
+      into SearXNG results and rerank them by query-term overlap.
       No cross-provider fallback.
     - If the search provider fails (missing key, quota/rate-limit, network issues), the tool will error.
     - For a deeper look at one result, call `get_content()` on the chosen `link`.
