@@ -18,6 +18,8 @@ import httpx
 
 from ..models import WebSearchResult
 from ..utils.diagnostics import Diagnostics
+from .googlenews import search_google_news
+from .localstack import search_local_stack
 from .searxng import search_searxng
 from .serpbase import search_serpbase
 from .serper import search_serper
@@ -35,6 +37,8 @@ __all__ = [
     "WebSearchProviderError",
     "any_provider_configured",
     "provider_env_vars",
+    "search_google_news",
+    "search_local_stack",
     "search_searxng",
     "search_serpbase",
     "search_serper",
@@ -95,6 +99,17 @@ class SearchProviderSpec:
 # cross-provider fallback. `searxng` keeps a `_config` diagnostics key rather than
 # `_key` because it is configured by a base URL, not an API key.
 PROVIDERS: tuple[SearchProviderSpec, ...] = (
+    # FORK ADDITION -- first so it wins when explicitly switched on. Wraps the
+    # SearXNG provider below and adds Google News RSS, query-overlap reranking
+    # and domain filtering; see `search/localstack.py`. Needs SEARXNG_BASE_URL
+    # as well, which its own error message explains if missing.
+    SearchProviderSpec(
+        "local-stack",
+        "Local stack (SearXNG + Google News)",
+        "KINDLY_LOCAL_STACK",
+        "search_local_stack",
+        "has_local_stack",
+    ),
     SearchProviderSpec(
         "serper", "Serper", "SERPER_API_KEY", "search_serper", "has_serper_key"
     ),
