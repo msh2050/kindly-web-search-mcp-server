@@ -13,6 +13,10 @@ What it adds over calling SearXNG directly:
   engines and does not AND the query terms, so a result matching only filler
   words can outrank an on-topic one -- "Iraq news today" surfacing a football
   piece titled "transfer news and rumours today" is a real observed case.
+* **ddgs merged in.** A metasearch library that reaches bing, brave and yahoo
+  through its own request shaping -- all three of which this SearXNG instance
+  cannot use (unreachable, 429 and 500 respectively). Complementary coverage
+  rather than duplicated coverage.
 * **Ignored domains.** Some hosts cost a content-extraction slot and can never
   repay it: msn.com 301s every article to a localised homepage, and the social
   networks are login walls.
@@ -34,6 +38,7 @@ from urllib.parse import urlparse
 import httpx
 
 from ..models import WebSearchResult
+from .ddgs_source import search_ddgs
 from .googlenews import resolve_google_news_links, search_google_news
 from .searxng import search_searxng
 
@@ -138,6 +143,16 @@ def rerank(results: list[WebSearchResult], query: str) -> list[WebSearchResult]:
     return [result for _, result in ordered]
 
 
+def _ddgs_timelimit() -> str | None:
+    """Recency window handed to ddgs for news-shaped queries.
+
+    ``d``/``w``/``m``/``y``; blank disables it. A week is wide enough to
+    survive a quiet news day and narrow enough to exclude archive pages.
+    """
+    raw = (os.environ.get("KINDLY_DDGS_NEWS_TIMELIMIT") or "w").strip().lower()
+    return raw if raw in ("d", "w", "m", "y") else None
+
+
 def looks_like_news(query: str) -> bool:
     """Guess whether a query wants current events."""
     if _flag("KINDLY_GOOGLE_NEWS_ALWAYS"):
@@ -184,28 +199,36 @@ async def search_local_stack(
         # discard without dropping below num_results.
         overfetch = max(num_results * 4, 20)
 
-        tasks: list = [
-            search_searxng(query, num_results=overfetch, http_client=client)
-        ]
+        # Named indices rather than positional ones: the news task is
+        # conditional, so a positional read silently shifts when it is absent.
+        tasks: dict = {
+            "searxng": search_searxng(query, num_results=overfetch, http_client=client),
+            # Recency window only when the query asks for it; ddgs would
+            # otherwise happily return decade-old pages for "news today".
+            "ddgs": search_ddgs(
+                query,
+                num_results=max(num_results * 2, 10),
+                timelimit=_ddgs_timelimit() if want_news else None,
+            ),
+        }
         if want_news:
-            tasks.append(
-                search_google_news(
-                    query,
-                    num_results=max(num_results * 2, 10),
-                    http_client=client,
-                    resolve_links=False,   # resolve only the survivors, below
-                )
+            tasks["news"] = search_google_news(
+                query,
+                num_results=max(num_results * 2, 10),
+                http_client=client,
+                resolve_links=False,   # resolve only the survivors, below
             )
 
-        gathered = await asyncio.gather(*tasks, return_exceptions=True)
+        done = dict(zip(tasks, await asyncio.gather(*tasks.values(),
+                                                    return_exceptions=True)))
 
-        primary = gathered[0]
+        primary = done["searxng"]
         if isinstance(primary, BaseException):
             raise primary
         results: list[WebSearchResult] = list(primary)
 
         if want_news:
-            news = gathered[1]
+            news = done["news"]
             if isinstance(news, BaseException):
                 LOGGER.warning("Google News unavailable (%s); using SearXNG only",
                                type(news).__name__)
@@ -218,6 +241,18 @@ async def search_local_stack(
                 # drops the fresh headlines entirely -- observed returning site
                 # hub pages and a 2010 article for a "today" query.
                 results = merge(list(news), results)
+
+        extra = done["ddgs"]
+        if isinstance(extra, BaseException):
+            LOGGER.info("ddgs unavailable (%s)", type(extra).__name__)
+        elif extra:
+            before = len(results)
+            # Appended, not led: SearXNG returns an order of magnitude more
+            # results, so ddgs is filling gaps rather than setting the order.
+            # Reranking decides the final order anyway.
+            results = merge(results, list(extra))
+            LOGGER.info("ddgs added %d result(s) (%d new)",
+                        len(extra), len(results) - before)
 
         results = drop_ignored(results)
         results = rerank(results, query)

@@ -202,8 +202,12 @@ Set **one** of these. Provider selection order is: Local stack → Serper → Se
 `KINDLY_LOCAL_STACK` is a fork addition. It reuses the SearXNG provider and
 adds Google News RSS (merged for news-shaped queries, with the feed's opaque
 wrapper URLs resolved to real articles), reranking by query-term overlap, and
-an ignore list for hosts that cannot be read. It needs `SEARXNG_BASE_URL` set
-too. See `src/kindly_web_search_mcp_server/search/localstack.py`.
+an ignore list for hosts that cannot be read. It also merges
+[`ddgs`](https://github.com/deedy5/ddgs), a metasearch library that reaches
+engines a given SearXNG instance may not -- on the machine this was built for,
+`brave` and `yahoo` answer through ddgs while SearXNG gets 429 and 500 from
+them. It needs `SEARXNG_BASE_URL` set too. See
+`src/kindly_web_search_mcp_server/search/localstack.py`.
 
 macOS / Linux:
 
