@@ -52,6 +52,10 @@ DEFAULT_IGNORED_DOMAINS = (
     "x.com",
     "twitter.com",
     "tiktok.com",
+    # Video pages yield no readable text, so one costs a content-extraction
+    # slot and returns nothing. Observed taking a slot on a research query.
+    "youtube.com",
+    "youtu.be",
 )
 
 # Words that carry no topic signal. Without this, "Iraq news today" ranks a
@@ -68,6 +72,52 @@ _NEWS_HINTS = frozenset(
 )
 
 _WORD_RE = re.compile(r"[^\W\d_]{3,}", re.UNICODE)
+
+# Source quality, used only to break ties between equally on-topic results.
+# Retrieval was never the weak part of a research query -- ranking was: a query
+# where every result mentions the topic leaves the overlap score flat, and
+# whatever the engines happened to return first wins. A vendor blog and a
+# standards body should not be interchangeable in that position.
+#
+# Suffix match, so "nist.gov" covers "www.nist.gov" and ".gov" covers any
+# government host.
+AUTHORITY = (
+    (3, (".gov", ".edu", ".mil", ".int", ".ac.uk", ".edu.au", ".ac.jp",
+         "arxiv.org", "doi.org", "nature.com", "science.org", "sciencedirect.com",
+         "ieee.org", "acm.org", "springer.com", "pubmed.ncbi.nlm.nih.gov",
+         "nih.gov", "who.int", "europa.eu", "oecd.org", "imf.org",
+         "worldbank.org", "un.org")),
+    (2, ("wikipedia.org", "reuters.com", "apnews.com", "bbc.co.uk", "bbc.com",
+         "ft.com", "economist.com", "nature.org", "scientificamerican.com",
+         "arstechnica.com", "aljazeera.com", "bloomberg.com", "wsj.com",
+         "github.com", "stackoverflow.com", "stackexchange.com",
+         "python.org", "mozilla.org", "docs.rs", "readthedocs.io")),
+    # Demoted: user-generated or aggregated pages that restate a source without
+    # being one. Never removed -- for some queries they are the only coverage.
+    (-1, ("linkedin.com", "quora.com", "pinterest.com", "blogspot.com",
+          "wordpress.com", "medium.com", "substack.com", "reddit.com",
+          "slideshare.net", "scribd.com")),
+)
+
+
+def authority_ranking_enabled() -> bool:
+    return (os.environ.get("KINDLY_AUTHORITY_RANKING") or "").strip().lower() \
+        not in ("0", "false", "no", "off")
+
+
+def authority_score(url: str) -> int:
+    """Rank a host by how far it is from being a primary source."""
+    if not authority_ranking_enabled():
+        return 0
+    host = _host(url)
+    if not host:
+        return 0
+    for score, suffixes in AUTHORITY:
+        for suffix in suffixes:
+            if host == suffix or host.endswith(suffix if suffix.startswith(".")
+                                               else "." + suffix):
+                return score
+    return 0
 
 
 def _flag(name: str, default: bool = False) -> bool:
@@ -124,18 +174,30 @@ def query_terms(query: str) -> set[str]:
 
 
 def rerank(results: list[WebSearchResult], query: str) -> list[WebSearchResult]:
-    """Stable-sort results by how many topic words they mention.
+    """Sort by topic-word overlap, breaking ties on source authority.
 
-    Ties keep the original order, so this only ever demotes clearly off-topic
-    results; it never invents a ranking of its own.
+    Overlap stays the primary key, so a more on-topic page always outranks a
+    more authoritative one -- authority only decides between results that match
+    the query equally well. In practice that is most of them: ask about quantum
+    computing and every result says "quantum", leaving the order to whichever
+    engine answered first. Original order is the final tiebreak, so this never
+    invents a ranking where it has no signal.
     """
     terms = query_terms(query)
-    if not terms:
+    if not terms and not authority_ranking_enabled():
         return results
 
-    def score(result: WebSearchResult) -> int:
+    def overlap(result: WebSearchResult) -> int:
         haystack = f"{result.title} {result.snippet}".lower()
         return sum(1 for term in terms if term in haystack)
+
+    def score(result: WebSearchResult) -> int:
+        # Overlap is doubled so authority is bounded: it can overturn a
+        # one-word difference in topical match but never a larger one. As a
+        # pure tiebreak it would almost never fire -- results rarely match a
+        # query *equally* -- and a blog repeating one extra query word would
+        # keep outranking a standards body, which is the whole problem here.
+        return overlap(result) * 2 + authority_score(result.link)
 
     ordered = sorted(
         enumerate(results), key=lambda pair: (score(pair[1]), -pair[0]), reverse=True
