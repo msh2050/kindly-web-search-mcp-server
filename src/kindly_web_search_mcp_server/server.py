@@ -176,6 +176,22 @@ def main(argv: list[str] | None = None) -> None:
             if hasattr(mcp, "settings") and hasattr(mcp.settings, key):
                 setattr(mcp.settings, key, value)
 
+        # Stateless HTTP, opt-in. A stateful server hands out an Mcp-Session-Id
+        # on initialize and rejects later calls that omit it (HTTP 400); clients
+        # that proxy MCP without carrying that header -- llama-server's web UI
+        # proxy among them -- cannot get past tools/list. Set the same way as
+        # host/port rather than through FASTMCP_STATELESS_HTTP, because the
+        # FastMCP settings model emits an IncompleteFieldDefinitionWarning for
+        # its `lifespan` field, which stops pydantic-settings resolving *any*
+        # env source, so that variable is silently ignored.
+        if (os.environ.get("KINDLY_STATELESS_HTTP") or "").strip().lower() not in (
+            "", "0", "false", "no", "off"
+        ):
+            for key in ("stateless_http", "json_response"):
+                if hasattr(mcp, "settings") and hasattr(mcp.settings, key):
+                    setattr(mcp.settings, key, True)
+            LOGGER.info("stateless HTTP enabled (no session id required)")
+
     try:
         mcp.run(transport=transport, mount_path=args.mount_path)
     except TypeError:
